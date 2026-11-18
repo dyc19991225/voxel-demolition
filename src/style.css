@@ -20,6 +20,15 @@ html, body, #app {
   cursor: crosshair;
 }
 
+#vd-flash {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(circle, rgba(255, 250, 220, 0.95) 0%, rgba(255, 132, 36, 0.65) 55%, rgba(255, 68, 0, 0) 100%);
+  pointer-events: none;
+  opacity: 0;
+  z-index: 15;
+}
+
 /* Top Map & Destruction Meter Bar */
 .top-hud {
   position: fixed;
@@ -41,7 +50,7 @@ html, body, #app {
   backdrop-filter: blur(10px);
   border-radius: 10px;
   padding: 10px 14px;
-  max-width: 620px;
+  max-width: 780px;
 }
 
 .map-tabs {
@@ -157,13 +166,15 @@ html, body, #app {
 /* Bottom Weapon Arsenal Dock */
 .arsenal-dock {
   position: fixed;
-  bottom: 16px;
+  bottom: 14px;
   left: 50%;
   transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100vw - 20px);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   z-index: 20;
 }
 
@@ -186,20 +197,22 @@ html, body, #app {
 
 .weapon-bar {
   display: flex;
-  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 5px;
   background: rgba(10, 14, 22, 0.92);
   border: 1px solid #2b3954;
-  padding: 7px;
+  padding: 6px;
   border-radius: 12px;
   backdrop-filter: blur(10px);
 }
 
 .wpn-card {
-  width: 112px;
+  width: 91px;
   background: #121826;
   border: 1px solid #232f46;
   border-radius: 8px;
-  padding: 7px 8px;
+  padding: 5px 6px;
   text-align: left;
   color: #cbd5e1;
   cursor: pointer;
@@ -219,14 +232,15 @@ html, body, #app {
 
 .wpn-key {
   font-family: Consolas, monospace;
-  font-size: 10.5px;
+  font-size: 10px;
   color: #94a3b8;
 }
 
 .wpn-name {
-  font-size: 12.5px;
+  font-size: 10.8px;
   font-weight: 800;
   margin-top: 2px;
+  white-space: nowrap;
 }
 
 .controls-tip {

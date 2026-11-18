@@ -8,7 +8,15 @@ export interface VoxelSeed {
   color: number;
 }
 
-export type MapId = 'twin_towers' | 'suspension_bridge' | 'powder_castle' | 'tower_crane' | 'domino_chain';
+export type MapId =
+  | 'twin_towers'
+  | 'titanic_iceberg'
+  | 'leaning_pisa'
+  | 'cyber_mech'
+  | 'suspension_bridge'
+  | 'powder_castle'
+  | 'tower_crane'
+  | 'domino_chain';
 
 export interface MapSpec {
   id: MapId;
@@ -283,6 +291,156 @@ export const MAPS: MapSpec[] = [
           }
         }
       }
+      return b.list();
+    },
+  },
+  {
+    id: 'titanic_iceberg',
+    name: '🚢 泰坦尼克号与极地冰山',
+    subtitle: '四烟囱豪华邮轮 + 舱底蒸汽红锅炉 + 船头巨型冰山！用天基激光拦腰切成两截或引爆锅炉舱',
+    camPos: [16, 15, 29],
+    lookAt: [0, 6, 0],
+    build() {
+      const b = makeBuilder();
+      // Ship Hull (x = -15..11, z = -3..3, y = 0..5)
+      for (let x = -15; x <= 11; x++) {
+        const taper = x > 6 ? Math.max(0, 3 - Math.floor((x - 5) * 0.6)) : x < -12 ? Math.max(1, 3 - Math.floor((-11 - x) * 0.6)) : 3;
+        for (let y = 0; y <= 5; y++) {
+          for (let z = -taper; z <= taper; z++) {
+            const hullShell = Math.abs(z) === taper || x === -15 || x === 11 || y === 0 || y === 5;
+            if (hullShell) {
+              const color = y <= 1 ? 0x991b1b : 0x1e293b; // Classic red keel + black steel hull
+              b.set(x, y, z, 'steel', color);
+            } else if (y === 2 && x % 4 === 0 && Math.abs(z) <= 1) {
+              // Boiler room TNT steam cores!
+              b.set(x, y, z, 'tnt');
+            }
+          }
+        }
+      }
+
+      // White Passenger Promenade Decks (y = 6..9, x = -10..6)
+      for (let y = 6; y <= 9; y++) {
+        for (let x = -10; x <= 6; x++) {
+          for (let z = -2; z <= 2; z++) {
+            if (Math.abs(z) === 2 || x === -10 || x === 6 || y === 9) {
+              const porthole = y === 7 && x % 2 === 0 && Math.abs(z) === 2;
+              b.set(x, y, z, porthole ? 'glass' : 'concrete', porthole ? 0x7dd3fc : 0xf8fafc);
+            }
+          }
+        }
+      }
+
+      // 4 Iconic Buff-Gold & Black Smokestacks!
+      for (const fx of [-7, -3, 1, 5]) {
+        for (let y = 10; y <= 15; y++) {
+          const stackCol = y >= 14 ? 0x0f172a : 0xf59e0b;
+          b.box(fx, y, -1, fx + 1, y, 1, 'wood', stackCol);
+        }
+      }
+
+      // Towering Jagged Blue Iceberg ahead of the bow (x = 13..18, z = -4..4)
+      for (let y = 0; y <= 14; y++) {
+        const rad = Math.max(1, 4 - Math.floor(y * 0.26));
+        for (let dx = -rad; dx <= rad; dx++) {
+          for (let dz = -rad; dz <= rad; dz++) {
+            if (Math.abs(dx) + Math.abs(dz) <= rad + 1) {
+              b.set(15 + dx, y, dz, 'glass', y > 9 ? 0xe0f2fe : 0x38bdf8);
+            }
+          }
+        }
+      }
+      return b.list();
+    },
+  },
+  {
+    id: 'leaning_pisa',
+    name: '🇮🇹 比萨斜塔与古典柱廊',
+    subtitle: '7 层渐进倾斜白色大理石拱塔 + 顶层黄金大钟！炸掉倾斜侧底柱看整座斜塔折断拍地',
+    camPos: [4, 16, 28],
+    lookAt: [2, 9, 0],
+    build() {
+      const b = makeBuilder();
+      // Classical colonnade plaza on the right waiting to get crushed!
+      for (let x = 7; x <= 15; x += 2) {
+        b.box(x, 0, -3, x, 4, -3, 'concrete', 0xe2e8f0);
+        b.box(x, 0, 3, x, 4, 3, 'concrete', 0xe2e8f0);
+      }
+      b.box(7, 5, -3, 15, 5, 3, 'brick', 0xc2410c);
+
+      // 7 Tilted Cylindrical Stories leaning progressively toward +X!
+      for (let y = 0; y <= 20; y++) {
+        const leanX = Math.floor(y * 0.26); // Progressive rightward lean!
+        const r = y >= 18 ? 2 : 3;
+        for (let dx = -r; dx <= r; dx++) {
+          for (let dz = -r; dz <= r; dz++) {
+            const distSq = dx * dx + dz * dz;
+            if (distSq <= r * r + 1 && distSq >= (r - 1) * (r - 1)) {
+              const galleryArch = y % 3 === 2 && (dx + dz) % 2 === 0;
+              if (!galleryArch) {
+                b.set(-3 + leanX + dx, y, dz, 'concrete', (y % 3 === 0) ? 0xf8fafc : 0xcbd5e1);
+              }
+            }
+          }
+        }
+        if (y % 3 === 0 && y > 0) {
+          b.box(-3 + leanX - 2, y, -2, -3 + leanX + 2, y, 2, 'wood');
+        }
+      }
+      // Golden Bell + TNT clapper at the top belfry!
+      b.box(2, 19, -1, 3, 21, 1, 'gold');
+      b.set(2, 18, 0, 'tnt');
+      return b.list();
+    },
+  },
+  {
+    id: 'cyber_mech',
+    name: '🤖 24米巨型机甲与整备架',
+    subtitle: '双腿承重高达风巨型机甲 + 胸口高能反应堆核心！打爆反应堆或炸断一条腿看百吨机甲跪地解体',
+    camPos: [18, 16, 26],
+    lookAt: [0, 10, 0],
+    build() {
+      const b = makeBuilder();
+      // Left & Right Feet + Legs (x = -4..-2 and 2..4, y = 0..9)
+      for (const lx of [-3, 3]) {
+        b.box(lx - 1, 0, -2, lx + 1, 1, 2, 'brick', 0xdc2626); // Red armored boots
+        b.box(lx - 1, 2, -1, lx + 1, 9, 1, 'concrete', 0xf8fafc); // White leg armor
+        b.box(lx - 1, 5, -2, lx + 1, 6, -2, 'gold'); // Knee thruster vents
+      }
+      // Pelvis & Waist (y = 10..11)
+      b.box(-4, 10, -1, 4, 11, 1, 'concrete', 0xe2e8f0);
+      b.box(-1, 10, -2, 1, 11, 2, 'brick', 0xdc2626);
+
+      // Blue Armored Chest + Glowing TNT Reactor Core! (y = 12..17)
+      b.box(-4, 12, -2, 4, 17, 2, 'steel', 0x1d4ed8);
+      b.box(-3, 15, -3, -2, 16, -3, 'gold');
+      b.box(2, 15, -3, 3, 16, -3, 'gold');
+      b.box(-1, 13, -2, 1, 15, 0, 'tnt'); // Chest reactor!
+      b.set(0, 14, -3, 'glass', 0x38bdf8);
+
+      // Shoulders + Arms + Giant Plasma Greatsword!
+      for (const sx of [-6, 6]) {
+        b.box(sx - 1, 15, -2, sx + 1, 18, 2, 'concrete', 0xf8fafc);
+        b.box(sx, 10, -1, sx, 14, 1, 'steel');
+      }
+      // Raised glowing cyan energy sword in right hand!
+      for (let sy = 12; sy <= 23; sy++) {
+        b.set(-6, sy, -2, sy > 14 ? 'glass' : 'gold', sy > 14 ? 0x22d3ee : 0xfacc15);
+      }
+
+      // Head + Iconic Golden V-Fin Antenna (y = 18..22)
+      b.box(-2, 18, -2, 2, 20, 1, 'concrete', 0xf8fafc);
+      b.box(-1, 19, -2, 1, 19, -2, 'glass', 0x4ade80);
+      b.set(0, 20, -2, 'brick', 0xdc2626);
+      b.set(-2, 21, -2, 'gold');
+      b.set(-3, 22, -2, 'gold');
+      b.set(2, 21, -2, 'gold');
+      b.set(3, 22, -2, 'gold');
+
+      // Yellow Hangar Gantry Frame behind mech
+      b.box(-9, 0, 5, -8, 19, 5, 'gold');
+      b.box(8, 0, 5, 9, 19, 5, 'gold');
+      b.box(-9, 19, 5, 9, 19, 5, 'gold');
       return b.list();
     },
   },

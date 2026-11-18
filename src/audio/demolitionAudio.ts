@@ -180,6 +180,32 @@ export class DemolitionAudio {
     this.sweep(190, 68, 0.24, 'triangle', 0.45);
   }
 
+  public playNukeWhistleAndSiren(): void {
+    this.unlock();
+    // Falling bomb whistle + air-raid warning horn
+    this.sweep(1650, 290, 0.85, 'sine', 0.34);
+    this.sweep(440, 680, 0.42, 'sawtooth', 0.18);
+    this.sweep(680, 420, 0.42, 'sawtooth', 0.18, 0.42);
+  }
+
+  public playNukeDetonation(): void {
+    this.unlock();
+    this.noise(1.8, 220, 0.55, 'lowpass', 1.65);
+    this.noise(0.95, 880, 0.75, 'bandpass', 1.05);
+    this.sweep(120, 18, 1.35, 'sine', 1.45);
+    this.sweep(78, 18, 1.2, 'sawtooth', 1.05);
+  }
+
+  public playAntiGravField(release = false): void {
+    this.unlock();
+    if (!release) {
+      this.sweep(180, 760, 0.9, 'sine', 0.32);
+      this.sweep(270, 1140, 0.9, 'triangle', 0.18);
+    } else {
+      this.sweep(820, 42, 0.36, 'sawtooth', 0.58);
+    }
+  }
+
   public playGlassShatter(): void {
     if (!this.ctx) return;
     this.noise(0.14, 4200, 1.8, 'highpass', 0.28);

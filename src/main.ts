@@ -4,15 +4,27 @@ import { VoxelDemolitionWorld } from './physics/voxelWorld';
 import './style.css';
 import { MAPS, type MapSpec } from './world/structures';
 
-type WeaponId = 'c4' | 'blackhole' | 'railgun' | 'tornado' | 'laser' | 'wrecking';
+type WeaponId =
+  | 'c4'
+  | 'blackhole'
+  | 'railgun'
+  | 'tornado'
+  | 'laser'
+  | 'wrecking'
+  | 'nuke'
+  | 'cluster'
+  | 'antigrav';
 
 const WEAPONS: { id: WeaponId; key: string; icon: string; name: string; hint: string }[] = [
   { id: 'c4', key: '1', icon: '💣', name: 'C4 遥控炸药', hint: '左键贴在承重柱上 · 按 [E] 连环引爆！' },
   { id: 'blackhole', key: '2', icon: '🕳️', name: '奇点黑洞球', hint: '左键发射引力奇点：撕碎吸入方块后超新星爆裂！' },
   { id: 'railgun', key: '3', icon: '🎯', name: '穿甲电磁炮', hint: '左键超音速贯穿三层墙体，精准点爆内部火药库！' },
   { id: 'tornado', key: '4', icon: '🌪️', name: 'EF5 龙卷风', hint: '左键召唤狂暴漏斗风柱，把整栋楼卷上高空！' },
-  { id: 'laser', key: '5', icon: '⚡', name: '天基离子激光', hint: '按住左键拖拽天基光束，像切豆腐一样横切大楼与大桥！' },
+  { id: 'laser', key: '5', icon: '⚡', name: '天基离子激光', hint: '按住左键拖拽天基光束，像切豆腐一样横切邮轮与大楼！' },
   { id: 'wrecking', key: '6', icon: '🎳', name: '巨型攻城球', hint: '左键投掷重型实心铁球撞塌石柱与骨牌阵！' },
+  { id: 'nuke', key: '7', icon: '☢️', name: '核弹蘑菇云', hint: '左键呼叫防空警报与战术核弹头，升起 3D 翻滚核爆蘑菇云！' },
+  { id: 'cluster', key: '8', icon: '🧨', name: '集束炸弹雨', hint: '左键召唤 14 枚高空子母弹地毯式覆盖轰炸！' },
+  { id: 'antigrav', key: '9', icon: '🌀', name: '反重力力场', hint: '左键开启失重矩阵把整片建筑拔地悬空，2 秒后重力反转猛砸碎裂！' },
 ];
 
 function smoothNoise(x: number, seed: number): number {
@@ -30,6 +42,7 @@ function smoothNoise(x: number, seed: number): number {
 const appRoot = document.getElementById('app')!;
 appRoot.innerHTML = `
   <div id="viewport"></div>
+  <div id="vd-flash"></div>
   <header class="top-hud">
     <div class="map-panel">
       <div class="map-tabs" id="vd-maps"></div>
@@ -94,6 +107,8 @@ let slowMo = false;
 let hitstopTimer = 0;
 let trauma = 0;
 let fovKick = 0;
+let nukeFlash = 0;
+const flashEl = document.getElementById('vd-flash')!;
 
 const orbitTarget = new THREE.Vector3(0, 8, 0);
 const curLook = new THREE.Vector3(0, 8, 0);
@@ -106,6 +121,9 @@ world.onBlastFeedback = (addT, stopSec) => {
   trauma = Math.min(1, trauma + addT);
   fovKick = Math.min(14, fovKick + addT * 14);
   hitstopTimer = Math.max(hitstopTimer, stopSec);
+};
+world.onNukeFlash = () => {
+  nukeFlash = 0.94;
 };
 
 let toastTimer = 0;
@@ -201,6 +219,15 @@ function fireActiveWeapon(): void {
     showToast('🌪️ EF5 狂暴龙卷风正在撕裂建筑！');
   } else if (activeWeapon === 'wrecking') {
     world.throwWreckingBall(camera.position.clone().add(new THREE.Vector3(0, -0.6, 0)), raycaster.ray.direction);
+  } else if (activeWeapon === 'nuke') {
+    world.dropTacticalNuke(hit.point);
+    showToast('☢️ 防空警报拉响！战术核弹头即将触地升起蘑菇云！');
+  } else if (activeWeapon === 'cluster') {
+    world.fireClusterBomb(hit.point);
+    showToast('🧨 14 枚高空集束子母炸弹正在地毯式轰炸！');
+  } else if (activeWeapon === 'antigrav') {
+    world.spawnAntiGravField(hit.point);
+    showToast('🌀 反重力矩阵开启：整片建筑失重升空，2 秒后重力猛砸！');
   }
 }
 
@@ -272,7 +299,9 @@ document.getElementById('btn-mute')!.onclick = (e) => {
 window.addEventListener('keydown', (e) => {
   audio.unlock();
   keys.add(e.code);
-  const numIdx = ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6'].indexOf(e.code);
+  const numIdx = ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6', 'Digit7', 'Digit8', 'Digit9'].indexOf(
+    e.code
+  );
   if (numIdx >= 0) selectWeapon(WEAPONS[numIdx].id);
   else if (e.code === 'KeyE' || e.code === 'Space') {
     const n = world.detonateAllC4();
@@ -350,6 +379,14 @@ function loop(now: number): void {
   fovKick *= Math.exp(-11 * rawDt);
   camera.fov = 52 + fovKick;
   camera.updateProjectionMatrix();
+
+  if (nukeFlash > 0.002) {
+    nukeFlash *= Math.exp(-3.4 * rawDt);
+    flashEl.style.opacity = nukeFlash.toFixed(3);
+  } else if (nukeFlash > 0) {
+    nukeFlash = 0;
+    flashEl.style.opacity = '0';
+  }
 
   renderer.render(scene, camera);
 

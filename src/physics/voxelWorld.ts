@@ -66,6 +66,47 @@ interface BlastDome {
   maxRadius: number;
 }
 
+interface FallingNuke {
+  target: THREE.Vector3;
+  pos: THREE.Vector3;
+  vy: number;
+  group: THREE.Group;
+  bullseye: THREE.Mesh;
+}
+
+interface MushroomCloud {
+  pos: THREE.Vector3;
+  group: THREE.Group;
+  stem: THREE.Mesh;
+  capGroup: THREE.Group;
+  dustRing: THREE.Mesh;
+  wilsonRing: THREE.Mesh;
+  mats: THREE.Material[];
+  geos: THREE.BufferGeometry[];
+  age: number;
+  duration: number;
+}
+
+interface ClusterBomblet {
+  pos: THREE.Vector3;
+  vel: THREE.Vector3;
+  mesh: THREE.Mesh;
+  idx: number;
+  life: number;
+}
+
+interface AntiGravZone {
+  pos: THREE.Vector3;
+  group: THREE.Group;
+  outerRing: THREE.Mesh;
+  innerRing: THREE.Mesh;
+  mats: THREE.Material[];
+  geos: THREE.BufferGeometry[];
+  age: number;
+  duration: number;
+  radius: number;
+}
+
 const MAT_HP: Record<VoxelMat, number> = {
   glass: 0.4,
   wood: 1.1,
@@ -91,6 +132,10 @@ export class VoxelDemolitionWorld {
   private tornadoes: TornadoEntity[] = [];
   private balls: WreckingBall[] = [];
   private domes: BlastDome[] = [];
+  private nukes: FallingNuke[] = [];
+  private mushroomClouds: MushroomCloud[] = [];
+  private bomblets: ClusterBomblet[] = [];
+  private antiGravs: AntiGravZone[] = [];
 
   private initialCount = 1;
   private destroyedCount = 0;
@@ -103,6 +148,7 @@ export class VoxelDemolitionWorld {
   private laserTick = 0;
 
   public onBlastFeedback: ((trauma: number, hitstopSec: number) => void) | null = null;
+  public onNukeFlash: (() => void) | null = null;
 
   private readonly dummy = new THREE.Object3D();
   private readonly tmpColor = new THREE.Color();
@@ -195,11 +241,32 @@ export class VoxelDemolitionWorld {
       d.mat.dispose();
       d.ringMat.dispose();
     }
+    for (const n of this.nukes) {
+      this.scene.remove(n.group);
+      this.scene.remove(n.bullseye);
+    }
+    for (const m of this.mushroomClouds) {
+      this.scene.remove(m.group);
+      for (const mat of m.mats) mat.dispose();
+      for (const geo of m.geos) geo.dispose();
+    }
+    for (const bm of this.bomblets) {
+      this.scene.remove(bm.mesh);
+    }
+    for (const ag of this.antiGravs) {
+      this.scene.remove(ag.group);
+      for (const mat of ag.mats) mat.dispose();
+      for (const geo of ag.geos) geo.dispose();
+    }
     this.c4List.length = 0;
     this.blackHoles.length = 0;
     this.tornadoes.length = 0;
     this.balls.length = 0;
     this.domes.length = 0;
+    this.nukes.length = 0;
+    this.mushroomClouds.length = 0;
+    this.bomblets.length = 0;
+    this.antiGravs.length = 0;
     this.laserBeam.visible = false;
     this.laserRing.visible = false;
     this.audio.setLaserActive(false);
@@ -405,6 +472,328 @@ export class VoxelDemolitionWorld {
       life: 3.5,
     });
     this.audio.playWreckingThrow();
+  }
+
+  // ==========================================================================
+  // WEAPON 7: Tactical Thermonuclear Warhead & Rising 3D Mushroom Cloud
+  // ==========================================================================
+  public dropTacticalNuke(target: THREE.Vector3): void {
+    this.audio.playNukeWhistleAndSiren();
+
+    const group = new THREE.Group();
+    const body = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.58, 0.58, 2.2, 14),
+      new THREE.MeshStandardMaterial({ color: 0xfacc15, metalness: 0.45, roughness: 0.35 })
+    );
+    const nose = new THREE.Mesh(
+      new THREE.ConeGeometry(0.58, 1.05, 14),
+      new THREE.MeshStandardMaterial({ color: 0xdc2626, metalness: 0.3, roughness: 0.4 })
+    );
+    nose.rotation.x = Math.PI;
+    nose.position.y = -1.6;
+    const fins = new THREE.Mesh(
+      new THREE.BoxGeometry(1.75, 0.75, 0.16),
+      new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.6, roughness: 0.3 })
+    );
+    fins.position.y = 0.9;
+    const finsCross = fins.clone();
+    finsCross.rotation.y = Math.PI / 2;
+    group.add(body, nose, fins, finsCross);
+
+    const startPos = new THREE.Vector3(target.x, Math.max(36, target.y + 32), target.z);
+    group.position.copy(startPos);
+    this.scene.add(group);
+
+    const bullseye = new THREE.Mesh(
+      new THREE.RingGeometry(1.2, 2.8, 32),
+      new THREE.MeshBasicMaterial({
+        color: 0xff2a2a,
+        transparent: true,
+        opacity: 0.88,
+        blending: THREE.AdditiveBlending,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      })
+    );
+    bullseye.rotation.x = -Math.PI / 2;
+    bullseye.position.set(target.x, 0.1, target.z);
+    this.scene.add(bullseye);
+
+    this.nukes.push({
+      target: target.clone(),
+      pos: startPos,
+      vy: -38,
+      group,
+      bullseye,
+    });
+  }
+
+  private spawnMushroomCloud(origin: THREE.Vector3): void {
+    const mats: THREE.Material[] = [];
+    const geos: THREE.BufferGeometry[] = [];
+    const group = new THREE.Group();
+    group.position.set(origin.x, 0, origin.z);
+
+    // 1. Towering Flared Fireball Stem
+    const stemGeo = new THREE.CylinderGeometry(1.45, 3.1, 1, 18, 1, true);
+    stemGeo.translate(0, 0.5, 0);
+    const stemMat = new THREE.MeshBasicMaterial({
+      color: 0xff6b1a,
+      transparent: true,
+      opacity: 0.92,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+    const innerStemGeo = new THREE.CylinderGeometry(0.75, 1.5, 1, 14, 1, true);
+    innerStemGeo.translate(0, 0.5, 0);
+    const innerStemMat = new THREE.MeshBasicMaterial({
+      color: 0xfff3b0,
+      transparent: true,
+      opacity: 0.95,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+    const stem = new THREE.Mesh(stemGeo, stemMat);
+    stem.add(new THREE.Mesh(innerStemGeo, innerStemMat));
+    group.add(stem);
+    geos.push(stemGeo, innerStemGeo);
+    mats.push(stemMat, innerStemMat);
+
+    // 2. Billowing Toroidal Mushroom Cap + Magma Crown + 8 Puff Lobes
+    const capGroup = new THREE.Group();
+    capGroup.position.y = 2.2;
+
+    const torusGeo = new THREE.TorusGeometry(3.6, 1.85, 16, 32);
+    const capCoreMat = new THREE.MeshStandardMaterial({
+      color: 0xff5a1f,
+      emissive: 0xff4500,
+      emissiveIntensity: 1.85,
+      roughness: 0.55,
+      transparent: true,
+      opacity: 0.95,
+    });
+    const torusMesh = new THREE.Mesh(torusGeo, capCoreMat);
+    torusMesh.rotation.x = Math.PI / 2;
+    capGroup.add(torusMesh);
+
+    const crownGeo = new THREE.SphereGeometry(3.8, 22, 16);
+    const crownMat = new THREE.MeshStandardMaterial({
+      color: 0xfb923c,
+      emissive: 0xff7b1c,
+      emissiveIntensity: 1.55,
+      roughness: 0.6,
+      transparent: true,
+      opacity: 0.94,
+    });
+    const crown = new THREE.Mesh(crownGeo, crownMat);
+    crown.scale.set(1.22, 0.72, 1.22);
+    crown.position.y = 1.05;
+    capGroup.add(crown);
+
+    const lobeGeo = new THREE.DodecahedronGeometry(1.75, 1);
+    const lobeMat = new THREE.MeshStandardMaterial({
+      color: 0x475569,
+      emissive: 0xea580c,
+      emissiveIntensity: 0.95,
+      roughness: 0.75,
+      transparent: true,
+      opacity: 0.9,
+    });
+    for (let i = 0; i < 8; i++) {
+      const ang = (i / 8) * Math.PI * 2;
+      const lobe = new THREE.Mesh(lobeGeo, lobeMat);
+      lobe.position.set(Math.cos(ang) * 4.2, (i % 2 === 0 ? 0.3 : -0.35), Math.sin(ang) * 4.2);
+      capGroup.add(lobe);
+    }
+    group.add(capGroup);
+    geos.push(torusGeo, crownGeo, lobeGeo);
+    mats.push(capCoreMat, crownMat, lobeMat);
+
+    // 3. Basal Ground Mach-Shock Dust Ring + Mid-Air Wilson Condensation Skirt
+    const dustGeo = new THREE.TorusGeometry(1.0, 0.22, 10, 36);
+    const dustMat = new THREE.MeshBasicMaterial({
+      color: 0xff9f2e,
+      transparent: true,
+      opacity: 0.9,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const dustRing = new THREE.Mesh(dustGeo, dustMat);
+    dustRing.rotation.x = Math.PI / 2;
+    dustRing.position.y = 0.45;
+    group.add(dustRing);
+
+    const wilsonGeo = new THREE.TorusGeometry(1.0, 0.14, 10, 36);
+    const wilsonMat = new THREE.MeshBasicMaterial({
+      color: 0xf8fafc,
+      transparent: true,
+      opacity: 0.78,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const wilsonRing = new THREE.Mesh(wilsonGeo, wilsonMat);
+    wilsonRing.rotation.x = Math.PI / 2;
+    wilsonRing.position.y = 6.5;
+    group.add(wilsonRing);
+
+    geos.push(dustGeo, wilsonGeo);
+    mats.push(dustMat, wilsonMat);
+
+    this.scene.add(group);
+    this.mushroomClouds.push({
+      pos: origin.clone(),
+      group,
+      stem,
+      capGroup,
+      dustRing,
+      wilsonRing,
+      mats,
+      geos,
+      age: 0,
+      duration: 4.2,
+    });
+  }
+
+  // ==========================================================================
+  // WEAPON 8: Carpet Cluster Sub-Munition Bomb Rain
+  // ==========================================================================
+  public fireClusterBomb(target: THREE.Vector3): void {
+    this.audio.playDetonateBeep();
+    this.audio.playWreckingThrow();
+
+    const count = 14;
+    for (let i = 0; i < count; i++) {
+      const ang = (i / count) * Math.PI * 2 + Math.random() * 0.4;
+      const rad = 1.2 + Math.random() * 7.8;
+      const hitX = target.x + Math.cos(ang) * rad;
+      const hitZ = target.z + Math.sin(ang) * rad;
+      const spawnPos = new THREE.Vector3(
+        target.x + (Math.random() - 0.5) * 2.4,
+        24 + i * 0.95,
+        target.z + (Math.random() - 0.5) * 2.4
+      );
+      const flightTime = 0.55 + i * 0.045;
+      const vel = new THREE.Vector3(
+        (hitX - spawnPos.x) / flightTime,
+        -24,
+        (hitZ - spawnPos.z) / flightTime
+      );
+
+      const mesh = new THREE.Mesh(
+        new THREE.OctahedronGeometry(0.46, 1),
+        new THREE.MeshBasicMaterial({ color: i % 2 === 0 ? 0xff6b1a : 0xfacc15 })
+      );
+      mesh.position.copy(spawnPos);
+      this.scene.add(mesh);
+
+      this.bomblets.push({
+        pos: spawnPos,
+        vel,
+        mesh,
+        idx: i,
+        life: 3.0,
+      });
+    }
+  }
+
+  // ==========================================================================
+  // WEAPON 9: Anti-Gravity Zero-G Lift Field -> Seismic Gravity Slam!
+  // ==========================================================================
+  public spawnAntiGravField(target: THREE.Vector3): void {
+    this.audio.playAntiGravField(false);
+    this.onBlastFeedback?.(0.22, 0);
+
+    const radius = 7.2;
+    const pos = new THREE.Vector3(target.x, 0.12, target.z);
+    const group = new THREE.Group();
+    group.position.copy(pos);
+
+    const mats: THREE.Material[] = [];
+    const geos: THREE.BufferGeometry[] = [];
+
+    const outerGeo = new THREE.TorusGeometry(radius, 0.18, 10, 44);
+    const outerMat = new THREE.MeshBasicMaterial({
+      color: 0x22d3ee,
+      transparent: true,
+      opacity: 0.92,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const outerRing = new THREE.Mesh(outerGeo, outerMat);
+    outerRing.rotation.x = Math.PI / 2;
+
+    const innerGeo = new THREE.TorusGeometry(radius * 0.58, 0.14, 10, 36);
+    const innerMat = new THREE.MeshBasicMaterial({
+      color: 0x34d399,
+      transparent: true,
+      opacity: 0.88,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const innerRing = new THREE.Mesh(innerGeo, innerMat);
+    innerRing.rotation.x = Math.PI / 2;
+
+    const pillarGeo = new THREE.CylinderGeometry(radius * 0.92, radius, 18, 24, 1, true);
+    pillarGeo.translate(0, 9, 0);
+    const pillarMat = new THREE.MeshBasicMaterial({
+      color: 0x06b6d4,
+      transparent: true,
+      opacity: 0.16,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+    const pillar = new THREE.Mesh(pillarGeo, pillarMat);
+
+    group.add(outerRing, innerRing, pillar);
+    geos.push(outerGeo, innerGeo, pillarGeo);
+    mats.push(outerMat, innerMat, pillarMat);
+
+    this.scene.add(group);
+    this.antiGravs.push({
+      pos,
+      group,
+      outerRing,
+      innerRing,
+      mats,
+      geos,
+      age: 0,
+      duration: 2.15,
+      radius,
+    });
+  }
+
+  private ripLooseIntoZeroG(center: THREE.Vector3, radius: number): void {
+    const rCeil = Math.ceil(radius);
+    const cx = Math.round(center.x);
+    const cz = Math.round(center.z);
+    let ripped = 0;
+    for (let x = cx - rCeil; x <= cx + rCeil; x++) {
+      for (let z = cz - rCeil; z <= cz + rCeil; z++) {
+        if (Math.hypot(x - center.x, z - center.z) > radius) continue;
+        for (let y = 0; y <= 20; y++) {
+          if (ripped > 42) break;
+          const k = this.key(x, y, z);
+          const v = this.staticMap.get(k);
+          if (!v) continue;
+          if (Math.random() < 0.26) {
+            this.staticMap.delete(k);
+            this.destroyedCount++;
+            ripped++;
+            this.spawnDebris(
+              v,
+              (Math.random() - 0.5) * 2.5,
+              5.5 + Math.random() * 4.5,
+              (Math.random() - 0.5) * 2.5,
+              0.05
+            );
+          }
+        }
+      }
+    }
+    if (ripped > 0) this.needsCollapseCheck = true;
   }
 
   // ==========================================================================
@@ -766,6 +1155,135 @@ export class VoxelDemolitionWorld {
       if (b.life <= 0) {
         this.scene.remove(b.mesh);
         this.balls.splice(i, 1);
+      }
+    }
+
+    // 5b. Tactical Nukes + Rising 3D Mushroom Clouds + Cluster Bomblets + Anti-Gravity Zones
+    for (let i = this.nukes.length - 1; i >= 0; i--) {
+      const nk = this.nukes[i];
+      nk.pos.y += nk.vy * scaledDt;
+      nk.group.position.copy(nk.pos);
+      nk.group.rotation.y += scaledDt * 6;
+      const pulse = 1 + Math.sin(elapsed * 24) * 0.25;
+      nk.bullseye.scale.setScalar(pulse);
+
+      if (nk.pos.y <= nk.target.y + 0.8) {
+        const hitPos = new THREE.Vector3(nk.target.x, Math.max(0.8, nk.target.y), nk.target.z);
+        this.scene.remove(nk.group);
+        this.scene.remove(nk.bullseye);
+        this.nukes.splice(i, 1);
+
+        this.audio.playNukeDetonation();
+        this.onNukeFlash?.();
+        this.spawnFresnelBlastDome(hitPos, 19.5);
+        this.spawnMushroomCloud(hitPos);
+        this.explodeSphere(hitPos, 11.8, 15.0, false);
+        this.onBlastFeedback?.(1.0, 0.095);
+      }
+    }
+
+    for (let i = this.mushroomClouds.length - 1; i >= 0; i--) {
+      const mc = this.mushroomClouds[i];
+      mc.age += scaledDt;
+      const p = Math.min(1, mc.age / mc.duration);
+      const easeRise = 1 - Math.pow(1 - p, 2.2);
+      const capY = 2.4 + easeRise * 19.5;
+      const capScale = 0.48 + Math.pow(p, 0.52) * 1.68;
+
+      mc.capGroup.position.y = capY;
+      mc.capGroup.scale.setScalar(capScale);
+      mc.capGroup.rotation.y += scaledDt * 1.35;
+
+      mc.stem.scale.set(0.75 + p * 0.65, capY, 0.75 + p * 0.65);
+      mc.dustRing.scale.setScalar(1.5 + Math.pow(p, 0.5) * 21.0);
+      mc.wilsonRing.position.y = Math.min(13.5, capY * 0.58);
+      mc.wilsonRing.scale.setScalar(1.2 + Math.pow(p, 0.6) * 11.5);
+
+      // Convective thermal updraft pulling loose debris into the mushroom stem!
+      if (p < 0.65) {
+        for (const d of this.debris) {
+          const dx = mc.pos.x - d.x;
+          const dz = mc.pos.z - d.z;
+          const distXZ = Math.hypot(dx, dz) + 0.1;
+          if (distXZ < 13 && d.y < capY) {
+            d.vx += (dx / distXZ) * 9 * scaledDt;
+            d.vz += (dz / distXZ) * 9 * scaledDt;
+            d.vy += 28 * scaledDt;
+          }
+        }
+      }
+
+      const fade = p > 0.62 ? Math.max(0, 1 - (p - 0.62) / 0.38) : 1;
+      for (const mat of mc.mats) {
+        (mat as THREE.Material & { opacity: number }).opacity = fade * 0.92;
+      }
+
+      if (mc.age >= mc.duration) {
+        this.scene.remove(mc.group);
+        for (const mat of mc.mats) mat.dispose();
+        for (const geo of mc.geos) geo.dispose();
+        this.mushroomClouds.splice(i, 1);
+      }
+    }
+
+    for (let i = this.bomblets.length - 1; i >= 0; i--) {
+      const bm = this.bomblets[i];
+      bm.life -= scaledDt;
+      bm.vel.y -= 18 * scaledDt;
+      bm.pos.addScaledVector(bm.vel, scaledDt);
+      bm.mesh.position.copy(bm.pos);
+      bm.mesh.rotation.x += scaledDt * 12;
+      bm.mesh.rotation.z += scaledDt * 9;
+
+      const hitBlock = this.staticMap.has(
+        this.key(Math.round(bm.pos.x), Math.round(bm.pos.y), Math.round(bm.pos.z))
+      );
+      if (hitBlock || bm.pos.y <= 0.55 || bm.life <= 0) {
+        const detPos = bm.pos.clone().setY(Math.max(0.6, bm.pos.y));
+        this.scene.remove(bm.mesh);
+        this.bomblets.splice(i, 1);
+        this.explodeSphere(detPos, 3.8, 5.5, bm.idx % 3 === 0);
+        if (bm.idx % 3 !== 0) {
+          this.spawnFresnelBlastDome(detPos, 3.8);
+        }
+      }
+    }
+
+    for (let i = this.antiGravs.length - 1; i >= 0; i--) {
+      const ag = this.antiGravs[i];
+      ag.age += scaledDt;
+      ag.outerRing.rotation.z += scaledDt * 5.5;
+      ag.innerRing.rotation.z -= scaledDt * 8.5;
+
+      this.ripLooseIntoZeroG(ag.pos, ag.radius * 0.92);
+
+      for (const d of this.debris) {
+        const dx = d.x - ag.pos.x;
+        const dz = d.z - ag.pos.z;
+        const distXZ = Math.hypot(dx, dz);
+        if (distXZ <= ag.radius * 1.15) {
+          // Cancel gravity (22) + float upward into zero-G suspension!
+          d.vy = Math.min(9.2, d.vy + 34 * scaledDt);
+          d.vx += (-dz * 0.8) * scaledDt;
+          d.vz += (dx * 0.8) * scaledDt;
+          d.rvx += 2.5 * scaledDt;
+        }
+      }
+
+      if (ag.age >= ag.duration) {
+        // GRAVITY SLAM! Violently smash all levitated blocks into the ground!
+        this.audio.playAntiGravField(true);
+        this.onBlastFeedback?.(0.58, 0.045);
+        for (const d of this.debris) {
+          if (Math.hypot(d.x - ag.pos.x, d.z - ag.pos.z) <= ag.radius * 1.35) {
+            d.vy = -29 - Math.random() * 7;
+            d.flashTimer = 0.09;
+          }
+        }
+        this.scene.remove(ag.group);
+        for (const mat of ag.mats) mat.dispose();
+        for (const geo of ag.geos) geo.dispose();
+        this.antiGravs.splice(i, 1);
       }
     }
 
