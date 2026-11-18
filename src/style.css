@@ -1,0 +1,238 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  user-select: none;
+}
+
+html, body, #app {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #0a0d14;
+  color: #f8fafc;
+  font-family: 'Inter', -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+#viewport {
+  position: fixed;
+  inset: 0;
+  cursor: crosshair;
+}
+
+/* Top Map & Destruction Meter Bar */
+.top-hud {
+  position: fixed;
+  top: 14px;
+  left: 16px;
+  right: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  pointer-events: none;
+  z-index: 20;
+}
+
+.map-panel {
+  pointer-events: auto;
+  background: rgba(11, 15, 24, 0.88);
+  border: 1px solid #28354d;
+  backdrop-filter: blur(10px);
+  border-radius: 10px;
+  padding: 10px 14px;
+  max-width: 620px;
+}
+
+.map-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 7px;
+}
+
+.map-btn {
+  border: 1px solid #28354d;
+  background: #131926;
+  color: #cbd5e1;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 5px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.map-btn.active {
+  background: #f59e0b;
+  border-color: #f59e0b;
+  color: #090b10;
+}
+
+.map-sub {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.meter-panel {
+  pointer-events: auto;
+  background: rgba(11, 15, 24, 0.88);
+  border: 1px solid #28354d;
+  backdrop-filter: blur(10px);
+  border-radius: 10px;
+  padding: 10px 14px;
+  min-width: 260px;
+}
+
+.meter-row {
+  display: flex;
+  justify-content: space-between;
+  font-family: Consolas, monospace;
+  font-size: 12px;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+
+.progress-track {
+  width: 100%;
+  height: 8px;
+  background: #172033;
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #f59e0b, #ef4444);
+  transition: width 0.15s ease;
+}
+
+.util-btns {
+  display: flex;
+  gap: 6px;
+}
+
+.u-btn {
+  flex: 1;
+  border: 1px solid #334155;
+  background: #161f30;
+  color: #e2e8f0;
+  padding: 5px 8px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.u-btn.slowmo-on {
+  background: #a855f7;
+  border-color: #c084fc;
+  color: #fff;
+}
+
+/* Center Callout */
+.banner-toast {
+  position: fixed;
+  top: 108px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: Consolas, 'Microsoft YaHei', monospace;
+  font-weight: 900;
+  font-size: 14px;
+  padding: 7px 16px;
+  border-radius: 8px;
+  background: rgba(9, 12, 18, 0.92);
+  border: 1px solid #f59e0b;
+  color: #fbbf24;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.16s ease;
+  z-index: 20;
+}
+
+.banner-toast.show {
+  opacity: 1;
+}
+
+/* Bottom Weapon Arsenal Dock */
+.arsenal-dock {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  z-index: 20;
+}
+
+.detonate-pill {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: #fff;
+  border: 2px solid #fca5a5;
+  font-size: 14px;
+  font-weight: 900;
+  padding: 8px 24px;
+  border-radius: 999px;
+  cursor: pointer;
+  box-shadow: 0 0 26px rgba(239, 68, 68, 0.6);
+  display: none;
+}
+
+.detonate-pill.visible {
+  display: inline-block;
+}
+
+.weapon-bar {
+  display: flex;
+  gap: 8px;
+  background: rgba(10, 14, 22, 0.92);
+  border: 1px solid #2b3954;
+  padding: 7px;
+  border-radius: 12px;
+  backdrop-filter: blur(10px);
+}
+
+.wpn-card {
+  width: 112px;
+  background: #121826;
+  border: 1px solid #232f46;
+  border-radius: 8px;
+  padding: 7px 8px;
+  text-align: left;
+  color: #cbd5e1;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.wpn-card:hover {
+  border-color: #64748b;
+}
+
+.wpn-card.selected {
+  background: rgba(245, 158, 11, 0.15);
+  border-color: #f59e0b;
+  color: #fde68a;
+  transform: translateY(-3px);
+}
+
+.wpn-key {
+  font-family: Consolas, monospace;
+  font-size: 10.5px;
+  color: #94a3b8;
+}
+
+.wpn-name {
+  font-size: 12.5px;
+  font-weight: 800;
+  margin-top: 2px;
+}
+
+.controls-tip {
+  font-size: 11.5px;
+  color: #94a3b8;
+  background: rgba(9, 12, 18, 0.82);
+  padding: 4px 12px;
+  border-radius: 999px;
+}
